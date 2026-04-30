@@ -680,7 +680,7 @@ if __name__ == "__main__":
     eval_env_wrapper = gymEnvWrapper_for_env_stock(env, PPO_COBFIG)
 
     ppo = PPO(PPO_COBFIG)
-    train = 0
+    train = 1
 
     if train:
         ppo.train(env_wrapper, eval_env_wrapper, num_episodes=1000)

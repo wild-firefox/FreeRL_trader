@@ -29,7 +29,7 @@ PPO_COBFIG = {
     'PPO': {
         ## liner
         'policy_mlp_dim': 128,
-        'activation':'ReLU', # ReLU, Leakyrelu, Elu, Swish
+        'activation':'ReLU', # ReLU, LeakyReLU, Elu, Swish
         'dropout':0.01, #0.01,
         'layernorm':False,
 
@@ -37,16 +37,16 @@ PPO_COBFIG = {
         'log_std_min': -10,
         'log_std_max': 2,
 
-        'p_lr': 1e-3,#5e-4,#1e-3,
-        'v_lr': 1e-3,#5e-4,#1e-3,
-        'horizon': 2048,#256,#2048,
-        'gamma': 0.99,#0.999, #0.99,
+        'p_lr': 1e-3,
+        'v_lr': 1e-3,
+        'horizon': 2048,
+        'gamma': 0.99,
         'lam': 0.95,
         'clip_epsilon': 0.2,
-        'K_epochs': 10,#3,#10,
+        'K_epochs': 10,
         'value_loss_coef': 1,
-        'ent_weight': 0.01,#0.1,#0.01,
-        'mini_batch_size': 64,#8,#64,
+        'ent_weight': 0.01,
+        'mini_batch_size': 64,
         'eval_interval': 1,
         'eval_episodes':1,
     },

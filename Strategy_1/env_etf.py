@@ -158,6 +158,10 @@ class ETFTradingEnv(gym.Env):
         self.portfolio_value = self.initial_amount
         self.cash = self.initial_amount
         self.positions = {tic: 0 for tic in self.etf_pool} # 持仓股数
+
+        # # === 新增：初始化每个 ETF 的持仓均价 ===
+        # self.average_costs = {tic: 0.0 for tic in self.etf_pool}
+
         self.last_portfolio_value = self.initial_amount
         
         # 记录历史
@@ -217,6 +221,9 @@ class ETFTradingEnv(gym.Env):
         
         # 目标每个ETF的资金分配
         target_values = {tic: pre_trade_value * w for tic, w in weights.items()}
+
+        # === 新增：用于记录当步(Step)的已实现总盈亏 ===
+        #step_realized_pnl = 0.0
         
         ## 这里买卖实盘得变成，先卖后买
         for tic in self.etf_pool: 
@@ -236,6 +243,29 @@ class ETFTradingEnv(gym.Env):
             
             # 交易成本 = 变动金额 * 费率
             change_value = diff_shares * price
+            
+            # # ================== 新增的核心逻辑 ==================
+            # if target_shares > self.positions[tic]: 
+            #     # 买入(加仓)逻辑：计算新的摊薄均价
+            #     bought_shares = target_shares - self.positions[tic]
+            #     # 总成本 = (原持仓股数 * 原均价) + (新买入股数 * 当前开盘价)
+            #     total_cost = (self.positions[tic] * self.average_costs[tic]) + (bought_shares * price)
+            #     self.average_costs[tic] = total_cost / target_shares if target_shares > 0 else 0.0
+                
+            # elif target_shares < self.positions[tic]:
+            #     # 卖出(减仓/清仓)逻辑：计算落袋为安的已实现盈亏
+            #     sold_shares = self.positions[tic] - target_shares
+            #     # 卖出部分的佣金
+            #     sell_fee = (sold_shares * price) * self.transaction_cost_pct
+            #     # 已实现盈亏 = (卖出价 - 持仓均价) * 卖出股数 - 卖出手续费
+            #     realized_pnl = (price - self.average_costs[tic]) * sold_shares - sell_fee
+            #     step_realized_pnl += realized_pnl
+                
+            #     if target_shares == 0:
+            #         self.average_costs[tic] = 0.0 # 清仓后均价归零
+            # # ====================================================
+            
+            
             transaction_cost += change_value * self.transaction_cost_pct
             total_turnover_value += change_value
             
@@ -274,7 +304,10 @@ class ETFTradingEnv(gym.Env):
         step_return = (self.portfolio_value - self.last_portfolio_value) / self.last_portfolio_value
         self.step_return_memory.append(step_return)
         
-        reward = step_return
+        reward = step_return  # 在我这个看目标是夏普比的情况下,效果不是很好 注释暂留
+        # === 修改：将奖励从总净值变化率改为：已实现盈亏占初始资金的比例 ===
+        # 公式: Reward = Realized_PnL / Initial_Amount
+        #reward = step_realized_pnl / self.initial_amount
             
         self.last_portfolio_value = self.portfolio_value
         
@@ -433,7 +466,7 @@ class ETFTradingEnv(gym.Env):
         # 使用 _get_state 计算好的动量分数来排序选股
         self.scores = scores = self.momentum_scores
         # 排序 注意：只对动量分数 > 0 的标的进行排序，确保选出的标的具有正动量
-        ranked_etfs = sorted([k for k, v in scores.items() if v > 0], key=lambda x: scores[x], reverse=True)
+        ranked_etfs = sorted([k for k, v in scores.items()], key=lambda x: scores[x], reverse=True) 
         
         if not ranked_etfs:
             return {} # 无正动量标的，空仓
@@ -449,14 +482,14 @@ class ETFTradingEnv(gym.Env):
             # 参考 calculate_weights momentum 逻辑
             target_scores = [scores[tic] for tic in target_etfs]
             min_score = min(target_scores)
-            # 由于已排除动量<0 的, 这里最小为0.01，避免负数和0权重 合理 
+            # 注意： 这里即使有动量<0的也可以，不影响逻辑
             adj_scores = [max(s - min_score + 0.01, 0.01) for s in target_scores]
             total_score = sum(adj_scores)
             for i, tic in enumerate(target_etfs):
                 weights[tic] = adj_scores[i] / total_score
                 
         elif action_type == 'volatility':
-            # 计算波动率倒数权重
+            # 计算波动率倒数权重：即波动率越大，权重越小： 理论上波动率最小值为0，最大值为0.1 (相当于第1天跌停，第2天涨停)
             inv_vols = []
             valid_targets = []
             for tic in target_etfs:
